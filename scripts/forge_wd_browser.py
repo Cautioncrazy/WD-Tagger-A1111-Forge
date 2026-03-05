@@ -171,7 +171,9 @@ def load_gallery(path):
 
     return images, f"Found {len(images)} images in {path}"
 
-def on_interrogate(image, model_name, gen_thresh, char_thresh, exclude_tags, escape_parens):
+def on_interrogate(input_mode, uploaded_image, selected_gallery_image, model_name, gen_thresh, char_thresh, exclude_tags, escape_parens):
+    image = uploaded_image if input_mode == "Upload Image" else selected_gallery_image
+
     if image is None:
          return "No image selected.", "", "", ""
 
@@ -225,8 +227,8 @@ def on_batch_process(folder_path, model_name, gen_thresh, char_thresh, exclude_t
                 continue
 
         try:
-            pil_image = Image.open(img_path)
-            res = tagger.interrogate(pil_image, gen_thresh, char_thresh, exclude_tags, escape_parens)
+            with Image.open(img_path) as pil_image:
+                res = tagger.interrogate(pil_image, gen_thresh, char_thresh, exclude_tags, escape_parens)
 
             gen_str = ", ".join(res["general"].keys())
             char_str = ", ".join(res["character"].keys())
@@ -269,14 +271,29 @@ def on_ui_tabs():
                 with gr.Row():
                     # Left Side: Gallery & Selection
                     with gr.Column(scale=1):
-                        gr.Markdown("### Image Gallery")
-                        gallery_path = gr.Textbox(label="Gallery Path", value=DEFAULT_GALLERY_DIR, interactive=True)
-                        refresh_btn = gr.Button("Refresh Gallery")
-                        status_msg = gr.Markdown()
+                        gr.Markdown("### Image Source")
+                        input_mode = gr.Radio(choices=["Upload Image", "Folder Gallery"], value="Upload Image", label="Mode")
 
-                        gallery = gr.Gallery(label="Images", show_label=False, columns=3, height=600, object_fit="contain", interactive=False)
+                        with gr.Group(visible=True) as upload_group:
+                            uploaded_image = gr.Image(label="Upload Image", type="numpy", interactive=True)
 
-                        selected_image = gr.Image(label="Selected Image", type="numpy", visible=False)
+                        with gr.Group(visible=False) as gallery_group:
+                            gallery_path = gr.Textbox(label="Gallery Path", value=DEFAULT_GALLERY_DIR, interactive=True)
+                            refresh_btn = gr.Button("Refresh Gallery")
+                            status_msg = gr.Markdown()
+
+                            gallery = gr.Gallery(label="Images", show_label=False, columns=3, height=500, object_fit="contain", interactive=False)
+
+                        selected_gallery_image = gr.Image(label="Selected Image", type="numpy", visible=False)
+
+                        def toggle_mode(mode):
+                            return gr.update(visible=mode == "Upload Image"), gr.update(visible=mode == "Folder Gallery")
+
+                        input_mode.change(
+                            fn=toggle_mode,
+                            inputs=[input_mode],
+                            outputs=[upload_group, gallery_group]
+                        )
 
                         def select_image(evt: gr.SelectData, gallery_files):
                             # The gallery currently returns lists of tuples/dicts depending on gradio version.
@@ -293,8 +310,7 @@ def on_ui_tabs():
                                 return path
                             return None
 
-                        gallery.select(fn=select_image, inputs=[gallery], outputs=[selected_image])
-
+                        gallery.select(fn=select_image, inputs=[gallery], outputs=[selected_gallery_image])
 
                         refresh_btn.click(
                             fn=load_gallery,
@@ -352,7 +368,7 @@ def on_ui_tabs():
 
                         interrogate_btn.click(
                             fn=on_interrogate,
-                            inputs=[selected_image, model_dropdown, gen_threshold, char_threshold, exclude_tags, escape_parens],
+                            inputs=[input_mode, uploaded_image, selected_gallery_image, model_dropdown, gen_threshold, char_threshold, exclude_tags, escape_parens],
                             outputs=[full_prompt_output, gen_output, char_output, rating_output]
                         )
 
