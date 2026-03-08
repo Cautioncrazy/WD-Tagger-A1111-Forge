@@ -181,32 +181,35 @@ def load_gallery(path):
     return images, f"Found {len(images)} images in {path}"
 
 def on_interrogate(input_mode, uploaded_image, selected_gallery_image, model_name, gen_thresh, char_thresh, exclude_tags, escape_parens):
-    image_path = uploaded_image if input_mode == "Upload Image" else selected_gallery_image
+    if input_mode == "Upload Image":
+        if uploaded_image is None:
+             return "No uploaded image selected.", "", "", ""
+        filename = "uploaded_image"
+        pil_image = Image.fromarray(uploaded_image)
+    else:
+        if not selected_gallery_image:
+             return "No gallery image selected.", "", "", ""
+        filename = os.path.basename(selected_gallery_image)
+        try:
+            import cv2
+            import numpy as np
+            # Avoid issues with Gradio's Temp file locking and Unicode paths by reading and converting back to PIL format
+            img_array = cv2.imdecode(np.fromfile(selected_gallery_image, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+            if img_array is not None:
+                 if len(img_array.shape) == 3 and img_array.shape[2] == 3:
+                     img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
+                 elif len(img_array.shape) == 3 and img_array.shape[2] == 4:
+                     img_array = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGBA)
+                 pil_image = Image.fromarray(img_array)
+            else:
+                 pil_image = Image.open(selected_gallery_image)
+        except ImportError:
+            pil_image = Image.open(selected_gallery_image)
 
-    if not image_path:
-         return "No image selected.", "", "", ""
-
-    filename = os.path.basename(image_path)
     logger.info(f"Loaded {filename}")
 
     if not tagger.load_model(model_name):
          return "Failed to load model.", "", "", ""
-
-    try:
-        import cv2
-        import numpy as np
-        # Avoid issues with Gradio's Temp file locking and Unicode paths by reading and converting back to PIL format
-        img_array = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-        if img_array is not None:
-             if len(img_array.shape) == 3 and img_array.shape[2] == 3:
-                 img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
-             elif len(img_array.shape) == 3 and img_array.shape[2] == 4:
-                 img_array = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGBA)
-             pil_image = Image.fromarray(img_array)
-        else:
-             pil_image = Image.open(image_path)
-    except ImportError:
-        pil_image = Image.open(image_path)
 
     logger.info("Starting interrogation...")
     res = tagger.interrogate(pil_image, gen_thresh, char_thresh, exclude_tags, escape_parens)
@@ -307,7 +310,7 @@ def on_ui_tabs():
                         input_mode = gr.Radio(choices=["Upload Image", "Folder Gallery"], value="Upload Image", label="Mode")
 
                         with gr.Group(visible=True) as upload_group:
-                            uploaded_image = gr.Image(label="Upload Image", type="filepath", interactive=True)
+                            uploaded_image = gr.Image(label="Upload Image", type="numpy", interactive=True)
 
                         with gr.Group(visible=False) as gallery_group:
                             gallery_path = gr.Textbox(label="Gallery Path", value=DEFAULT_GALLERY_DIR, interactive=True)
@@ -316,7 +319,7 @@ def on_ui_tabs():
 
                             gallery = gr.Gallery(label="Images", show_label=False, columns=3, height=500, object_fit="contain", interactive=False)
 
-                        selected_gallery_image = gr.Image(label="Selected Image", type="filepath", visible=False)
+                        selected_gallery_image = gr.State(None)
 
                         def toggle_mode(mode):
                             return gr.update(visible=mode == "Upload Image"), gr.update(visible=mode == "Folder Gallery")
