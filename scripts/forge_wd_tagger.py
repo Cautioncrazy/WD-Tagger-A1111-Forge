@@ -185,7 +185,7 @@ def on_interrogate(input_mode, uploaded_image, selected_gallery_image, model_nam
         if uploaded_image is None:
              return "No uploaded image selected.", "", "", ""
         filename = "uploaded_image"
-        pil_image = Image.fromarray(uploaded_image)
+        pil_image = uploaded_image # Already a PIL image because type="pil"
     else:
         if not selected_gallery_image:
              return "No gallery image selected.", "", "", ""
@@ -310,7 +310,7 @@ def on_ui_tabs():
                         input_mode = gr.Radio(choices=["Upload Image", "Folder Gallery"], value="Upload Image", label="Mode")
 
                         with gr.Group(visible=True) as upload_group:
-                            uploaded_image = gr.Image(label="Upload Image", type="numpy", interactive=True)
+                            uploaded_image = gr.Image(label="Upload Image", type="pil", interactive=True)
 
                         with gr.Group(visible=False) as gallery_group:
                             gallery_path = gr.Textbox(label="Gallery Path", value=DEFAULT_GALLERY_DIR, interactive=True)
