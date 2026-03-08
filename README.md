@@ -5,7 +5,8 @@ A high-performance image interrogation and tagging extension for **Stable Diffus
 [![Forge Compatibility](https://img.shields.io/badge/WebUI-Forge-orange.svg)](https://github.com/lllyasviel/stable-diffusion-webui-forge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-<img width="1920" height="1080" alt="Screenshot 2026-03-08 160142" src="https://github.com/user-attachments/assets/7d731117-9e3f-4d3b-8bde-b44f53e9a856" />
+<img width="1816" height="1016" alt="Screenshot 2026-03-08 160142" src="https://github.com/user-attachments/assets/d8b039cb-fbf1-4ecd-b933-6bb92c3daabe" />
+
 
 ## ✨ Features
 
