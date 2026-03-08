@@ -42,6 +42,46 @@ AVAILABLE_MODELS = {
 
 # --- Backend Logic ---
 
+class ClipInterrogatorBackend:
+    def __init__(self):
+        self.ci = None
+        self.clip_model_name = None
+
+    def load(self, model_name="ViT-L-14/openai"):
+        if self.ci is not None and self.clip_model_name == model_name:
+            return True
+        try:
+            from clip_interrogator import Config, Interrogator
+            logger.info(f"Loading CLIP Interrogator model: {model_name}")
+            config = Config()
+            config.clip_model_name = model_name
+            self.ci = Interrogator(config)
+            self.clip_model_name = model_name
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load CLIP Interrogator: {e}")
+            return False
+
+    def interrogate(self, image: Image.Image, mode="best"):
+        if self.ci is None:
+            return "Model not loaded"
+        try:
+            # clip_interrogator requires a proper RGB image
+            image = image.convert('RGB')
+            if mode == "fast":
+                return self.ci.interrogate_fast(image)
+            elif mode == "classic":
+                return self.ci.interrogate_classic(image)
+            elif mode == "negative":
+                return self.ci.interrogate_negative(image)
+            else:
+                return self.ci.interrogate(image)
+        except Exception as e:
+            logger.error(f"Error during CLIP interrogation: {e}")
+            return f"Error: {e}"
+
+clip_backend = ClipInterrogatorBackend()
+
 class WDTagger:
     def __init__(self):
         self.model_name = None
@@ -229,6 +269,41 @@ def on_interrogate(input_mode, uploaded_image, selected_gallery_image, model_nam
     full_prompt = ", ".join(all_tags)
 
     return full_prompt, gen_str, char_str, rating_str
+
+def on_clip_interrogate(input_mode, uploaded_image, selected_gallery_image, clip_model, interrogate_mode):
+    if input_mode == "Upload Image":
+        if uploaded_image is None:
+             return "No uploaded image selected."
+        filename = "uploaded_image"
+        pil_image = uploaded_image # Already a PIL image because type="pil"
+    else:
+        if not selected_gallery_image:
+             return "No gallery image selected."
+        filename = os.path.basename(selected_gallery_image)
+        try:
+            import cv2
+            import numpy as np
+            img_array = cv2.imdecode(np.fromfile(selected_gallery_image, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+            if img_array is not None:
+                 if len(img_array.shape) == 3 and img_array.shape[2] == 3:
+                     img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
+                 elif len(img_array.shape) == 3 and img_array.shape[2] == 4:
+                     img_array = cv2.cvtColor(img_array, cv2.COLOR_BGRA2RGBA)
+                 pil_image = Image.fromarray(img_array)
+            else:
+                 pil_image = Image.open(selected_gallery_image)
+        except ImportError:
+            pil_image = Image.open(selected_gallery_image)
+
+    logger.info(f"Loaded {filename}")
+
+    if not clip_backend.load(clip_model):
+        return "Failed to load CLIP Interrogator model."
+
+    logger.info("Starting CLIP interrogation...")
+    res = clip_backend.interrogate(pil_image, mode=interrogate_mode)
+    logger.info("Finished CLIP interrogation.")
+    return res
 
 def on_batch_process(folder_path, model_name, gen_thresh, char_thresh, exclude_tags, escape_parens, conflict_action, tag_suffix):
     if not os.path.exists(folder_path):
@@ -434,6 +509,96 @@ def on_ui_tabs():
                     inputs=[batch_folder_path, batch_model_dropdown, batch_gen_threshold, batch_char_threshold, batch_exclude_tags, batch_escape_parens, conflict_action, tag_suffix],
                     outputs=[batch_status_output]
                 )
+
+            # --- CLIP Interrogator Tab ---
+            with gr.TabItem("CLIP Interrogator"):
+                with gr.Row():
+                    # Left Side: Gallery & Selection
+                    with gr.Column(scale=1):
+                        gr.Markdown("### Image Source")
+                        clip_input_mode = gr.Radio(choices=["Upload Image", "Folder Gallery"], value="Upload Image", label="Mode")
+
+                        with gr.Group(visible=True) as clip_upload_group:
+                            clip_uploaded_image = gr.Image(label="Upload Image", type="pil", interactive=True)
+
+                        with gr.Group(visible=False) as clip_gallery_group:
+                            clip_gallery_path = gr.Textbox(label="Gallery Path", value=DEFAULT_GALLERY_DIR, interactive=True)
+                            clip_refresh_btn = gr.Button("Refresh Gallery")
+                            clip_status_msg = gr.Markdown()
+
+                            clip_gallery = gr.Gallery(label="Images", show_label=False, columns=3, height=500, object_fit="contain", interactive=False)
+
+                        clip_selected_gallery_image = gr.State(None)
+
+                        def clip_toggle_mode(mode):
+                            return gr.update(visible=mode == "Upload Image"), gr.update(visible=mode == "Folder Gallery")
+
+                        clip_input_mode.change(
+                            fn=clip_toggle_mode,
+                            inputs=[clip_input_mode],
+                            outputs=[clip_upload_group, clip_gallery_group]
+                        )
+
+                        def clip_select_image(evt: gr.SelectData, gallery_files):
+                            if gallery_files and evt.index < len(gallery_files):
+                                item = gallery_files[evt.index]
+                                if isinstance(item, dict):
+                                    path = item.get('name')
+                                elif isinstance(item, tuple) or isinstance(item, list):
+                                    path = item[0]
+                                else:
+                                    path = item
+                                return path
+                            return None
+
+                        clip_gallery.select(fn=clip_select_image, inputs=[clip_gallery], outputs=[clip_selected_gallery_image])
+
+                        clip_refresh_btn.click(
+                            fn=load_gallery,
+                            inputs=[clip_gallery_path],
+                            outputs=[clip_gallery, clip_status_msg]
+                        )
+
+                        wd_browser_interface.load(
+                            fn=load_gallery,
+                            inputs=[clip_gallery_path],
+                            outputs=[clip_gallery, clip_status_msg]
+                        )
+
+                    # Right Side: Results & Controls
+                    with gr.Column(scale=1):
+                        gr.Markdown("### Interrogation Settings")
+                        with gr.Row():
+                            clip_model_dropdown = gr.Dropdown(label="CLIP Model", choices=["ViT-L-14/openai", "ViT-H-14/laion2b_s32b_b79k"], value="ViT-L-14/openai")
+                            clip_mode_dropdown = gr.Dropdown(label="Interrogation Mode", choices=["best", "fast", "classic", "negative"], value="best")
+
+                        clip_interrogate_btn = gr.Button("Interrogate Image (CLIP)", variant="primary")
+
+                        gr.Markdown("### Results")
+                        clip_full_prompt_output = gr.TextArea(label="Generated Prompt", lines=4, interactive=True)
+
+                        with gr.Row():
+                            clip_send_to_txt2img = gr.Button("Send to txt2img")
+                            clip_send_to_img2img = gr.Button("Send to img2img")
+
+                        clip_send_to_txt2img.click(
+                            fn=None,
+                            inputs=[clip_full_prompt_output],
+                            outputs=[],
+                            js="(tags) => { const el = document.querySelector('#txt2img_prompt textarea'); if(el) { el.value = tags; el.dispatchEvent(new Event('input', {bubbles: true})); } }"
+                        )
+                        clip_send_to_img2img.click(
+                            fn=None,
+                            inputs=[clip_full_prompt_output],
+                            outputs=[],
+                            js="(tags) => { const el = document.querySelector('#img2img_prompt textarea'); if(el) { el.value = tags; el.dispatchEvent(new Event('input', {bubbles: true})); } }"
+                        )
+
+                        clip_interrogate_btn.click(
+                            fn=on_clip_interrogate,
+                            inputs=[clip_input_mode, clip_uploaded_image, clip_selected_gallery_image, clip_model_dropdown, clip_mode_dropdown],
+                            outputs=[clip_full_prompt_output]
+                        )
 
     return [(wd_browser_interface, "WD Tagger", "forge_wd_tagger")]
 

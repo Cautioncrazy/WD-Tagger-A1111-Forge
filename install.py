@@ -15,3 +15,6 @@ if not launch.is_installed("onnxruntime") and not launch.is_installed("onnxrunti
         launch.run_pip("install onnxruntime-gpu", "requirements for Forge-WD-Tagger (onnxruntime-gpu)")
     else:
         launch.run_pip("install onnxruntime", "requirements for Forge-WD-Tagger (onnxruntime)")
+
+if not launch.is_installed("clip_interrogator"):
+    launch.run_pip("install clip-interrogator", "requirements for Forge-WD-Tagger (CLIP-Interrogator)")
