@@ -1,4 +1,4 @@
-# Forge WD Browser 🏷️
+# Forge WD Tagger 🏷️
 
 A high-performance image interrogation and tagging extension for **Stable Diffusion WebUI Forge**, inspired by the UI/UX of the [Civitai Browser](https://github.com/eduardoabreu81/sd-civitai-browser-ex) and powered by [SmilingWolf's WD Tagger](https://huggingface.co/spaces/SmilingWolf/wd-tagger).
 
@@ -20,7 +20,7 @@ A high-performance image interrogation and tagging extension for **Stable Diffus
 1.  Open **SD WebUI Forge**.
 2.  Navigate to the **Extensions** tab -> **Install from URL**.
 3.  Paste the URL of this repository:
-    `https://github.com/YOUR_USERNAME/forge-wd-browser`
+    `https://github.com/YOUR_USERNAME/forge-wd-tagger`
 4.  Click **Install**.
 5.  **Restart UI** (or close and relaunch the terminal).
 
@@ -29,7 +29,7 @@ A high-performance image interrogation and tagging extension for **Stable Diffus
 ## 🛠️ How to Use
 
 ### Single Image Mode
-1.  Go to the **WD Browser** tab.
+1.  Go to the **WD Tagger** tab.
 2.  Select an image from your `outputs` gallery or drag-and-drop a file.
 3.  Adjust the **Threshold** (Default: `0.35`).
 4.  Click **Interrogate**.
@@ -43,7 +43,7 @@ A high-performance image interrogation and tagging extension for **Stable Diffus
 
 ## 📊 Comparison
 
-| Feature | Standard WD14 Tagger | Forge WD Browser |
+| Feature | Standard WD14 Tagger | Forge WD Tagger |
 | :--- | :---: | :---: |
 | **UI Layout** | Single Column | **Civitai-style Gallery** |
 | **Backend** | TensorFlow/ONNX | **Optimized ONNX** |

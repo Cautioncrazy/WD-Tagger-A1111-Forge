@@ -14,11 +14,18 @@ import modules.scripts as scripts
 from modules import script_callbacks, shared
 import modules.generation_parameters_copypaste as parameters_copypaste
 
-logger = logging.getLogger("forge-wd-browser")
+class ColoredFormatter(logging.Formatter):
+    def format(self, record):
+        prefix = "\033[38;2;146;31;184m[\033[38;2;69;184;31mWD Tagger Ext.\033[38;2;146;31;184m]\033[0m"
+        return f"{prefix} - {record.getMessage()}"
+
+logger = logging.getLogger("forge-wd-tagger")
 logger.setLevel(logging.INFO)
+logger.propagate = False
 if not logger.handlers:
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
+    ch.setFormatter(ColoredFormatter())
     logger.addHandler(ch)
 
 MODELS_DIR = os.path.join(scripts.basedir(), "models", "WD-Tagger")
@@ -177,11 +184,15 @@ def on_interrogate(input_mode, uploaded_image, selected_gallery_image, model_nam
     if image is None:
          return "No image selected.", "", "", ""
 
+    logger.info("Loaded image file")
+
     if not tagger.load_model(model_name):
          return "Failed to load model.", "", "", ""
 
     pil_image = Image.fromarray(image)
+    logger.info("Starting interrogation...")
     res = tagger.interrogate(pil_image, gen_thresh, char_thresh, exclude_tags, escape_parens)
+    logger.info("Finished interrogation.")
 
     if "error" in res:
         return res["error"], "", "", ""
@@ -227,8 +238,11 @@ def on_batch_process(folder_path, model_name, gen_thresh, char_thresh, exclude_t
                 continue
 
         try:
+            logger.info(f"Loaded {os.path.basename(img_path)}")
             with Image.open(img_path) as pil_image:
+                logger.info("Starting interrogation...")
                 res = tagger.interrogate(pil_image, gen_thresh, char_thresh, exclude_tags, escape_parens)
+                logger.info("Finished interrogation.")
 
             gen_str = ", ".join(res["general"].keys())
             char_str = ", ".join(res["character"].keys())
@@ -400,6 +414,6 @@ def on_ui_tabs():
                     outputs=[batch_status_output]
                 )
 
-    return [(wd_browser_interface, "WD Browser", "forge_wd_browser")]
+    return [(wd_browser_interface, "WD Tagger", "forge_wd_tagger")]
 
 script_callbacks.on_ui_tabs(on_ui_tabs)
